@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>XR Code</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+		<style>
+			body {
+				font-family: Monospace;
+				background-color: #808080;
+				color: #fff;
+				margin: 0;
+				overflow: hidden;
+			}
+			canvas {
+				display: block;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="code" style="display:none">
+let mesh;
+
+function init() {
+
+	let geometry = new THREE.IcosahedronGeometry( 0.1 );
+	let material = new THREE.MeshStandardMaterial( {
+		roughness: 0.2, metalness: 0.5
+	} );
+
+	mesh = new THREE.Mesh( geometry, material );
+	scene.add( mesh );
+
+}
+
+function update( time ) {
+
+	mesh.material.color.setHSL( time / 1000, 0.5, 0.5 );
+	mesh.position.y = Math.sin( time / 1000 ) * 0.5 + 0.5;
+	mesh.rotation.set( time / 1000, time / 2000, 0 );
+
+}
+		</div>
+
+		<script src="js/textor/texteditor.js"></script>
+		<script src="js/textor/javascript.js"></script>
+		<script type="module">
+
+			import * as THREE from 'https://unpkg.com/three@0.116.1/build/three.module.js';
+			import { GLTFLoader } from 'https://unpkg.com/three@0.116.1/examples/jsm/loaders/GLTFLoader.js';
+			import { VRButton } from 'https://unpkg.com/three@0.116.1/examples/jsm/webxr/VRButton.js';
+
+			import { ConsoleTexture } from './js/console.js';
+			import { Environment } from './js/environment.js';
+
+			let camera, scene, renderer;
+
+			let editor, texture;
+			let consoleTexture;
+			let viewers = [];
+
+			let controller1, controller2, raycaster;
+			let tempMatrix = new THREE.Matrix4();
+
+			let draggables = [];
+
+			init();
+			initEditor();
+			animate();
+
+			function init() {
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.xr.enabled = true;
+				// renderer.outputEncoding = THREE.sRGBEncoding;
+				document.body.appendChild( renderer.domElement );
+				renderer.domElement.addEventListener( 'click', function () { editor.focus() } );
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+				//
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0x808080 );
+				scene.environment = new Environment( renderer );
+
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 20 );
+				camera.position.set( 0, 1.6, 0 );
+
+				const manager = new THREE.LoadingManager();
+				manager.setURLModifier( ( url ) => {
+
+					return url.replace( 'textures/', '' );
+
+				} );
+				const loader = new GLTFLoader( manager );
+				loader.setPath( 'assets/' );
+				loader.load( 'scene.gltf', function ( gltf ) {
+
+					gltf.scene.position.y = 1;
+					gltf.scene.position.x = 1.5;
+					gltf.scene.position.z = - 1;
+
+					scene.add( gltf.scene );
+
+				} );
+
+				let viewer = new THREE.Mesh(
+					new THREE.IcosahedronGeometry( 0.1, 2 ),
+					new THREE.MeshBasicMaterial( {
+						color: 0x111111,
+						blending: THREE.AdditiveBlending,
+						depthTest: false,
+						depthWrite: false,
+						transparent: true
+					} )
+				);
+				viewer.position.set( 0, 0, - 1 );
+				viewer.userData.program = null;
+				scene.add( viewer );
+
+				draggables.push( viewer );
+				viewers.push( viewer );
+
+				//
+
+				document.body.appendChild( VRButton.createButton( renderer ) );
+
+				controller1 = renderer.xr.getController( 0 );
+				controller1.addEventListener( 'selectstart', onSelectStart );
+				controller1.addEventListener( 'selectend', onSelectEnd );
+				controller1.addEventListener( 'squeezestart', onSqueezeStart );
+				controller1.addEventListener( 'squeezeend', onSqueezeEnd );
+				controller1.userData.isSqueezing = false;
+				scene.add( controller1 );
+
+				controller2 = renderer.xr.getController( 1 );
+				controller2.addEventListener( 'selectstart', onSelectStart );
+				controller2.addEventListener( 'selectend', onSelectEnd );
+				controller2.addEventListener( 'squeezestart', onSqueezeStart );
+				controller2.addEventListener( 'squeezeend', onSqueezeEnd );
+				controller2.userData.isSqueezing = false;
+				scene.add( controller2 );
+
+				//
+
+				let geometry = new THREE.BufferGeometry()
+				geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 1 ) ] );
+
+				let line = new THREE.Line( geometry );
+				line.scale.z = 2;
+
+				controller1.add( line.clone() );
+				controller2.add( line.clone() );
+
+				raycaster = new THREE.Raycaster();
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			//
+
+			function getIntersections( controller ) {
+
+				tempMatrix.identity().extractRotation( controller.matrixWorld );
+
+				raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
+				raycaster.ray.direction.set( 0, 0, - 1 ).applyMatrix4( tempMatrix );
+
+				return raycaster.intersectObjects( draggables );
+
+			}
+
+			function onSelectStart( event ) {
+
+				let controller = event.target;
+
+				let intersections = getIntersections( controller );
+
+				if ( intersections.length > 0 ) {
+
+					let intersection = intersections[ 0 ];
+
+					let object = intersection.object;
+
+					if ( controller.userData.isSqueezing && object.name !== 'editor' ) {
+
+						object = object.clone();
+
+						draggables.push( object );
+						viewers.push( object );
+
+						compile();
+
+					}
+
+					controller.attach( object );
+
+					controller.userData.selected = object;
+
+				}
+
+			}
+
+			function onSelectEnd( event ) {
+
+				let controller = event.target;
+
+				if ( controller.userData.selected !== undefined ) {
+
+					let object = controller.userData.selected;
+					scene.attach( object );
+
+					controller.userData.selected = undefined;
+
+					if ( object.name === 'editor' ) {
+
+						editor.focus();
+
+					}
+
+				}
+
+
+			}
+
+			//
+
+			function onSqueezeStart( event ) {
+
+				let controller = event.target;
+				controller.userData.isSqueezing = true;
+
+			}
+
+			function onSqueezeEnd( event ) {
+
+				let controller = event.target;
+				controller.userData.isSqueezing = false;
+
+			}
+
+			//
+
+			function intersectObjects( controller ) {
+
+				// Do not highlight when already selected
+
+				if ( controller.userData.selected !== undefined ) return;
+
+				let line = controller.children[ 0 ];
+				let intersections = getIntersections( controller );
+
+				if ( intersections.length > 0 ) {
+
+					let intersection = intersections[ 0 ];
+
+					let object = intersection.object;
+
+					line.scale.z = intersection.distance;
+
+				} else {
+
+					line.scale.z = 2;
+
+				}
+
+			}
+
+			// Code Editor
+
+			function initEditor() {
+
+				let canvas = document.createElement( 'canvas' );
+				canvas.width = 512;
+				canvas.height = 512;
+				canvas.style.display = 'block';
+				canvas.style.position = 'absolute';
+				canvas.style.top = '0';
+				canvas.style.zIndex = '-1'; // 🙃
+				document.body.appendChild( canvas );
+
+				//
+
+				texture = new THREE.CanvasTexture( canvas );
+				texture.wrapS = THREE.ClampToEdgeWrapping;
+				texture.wrapT = THREE.ClampToEdgeWrapping;
+				// texture.minFilter = THREE.LinearMipmapNearestFilter;
+				texture.minFilter = THREE.LinearFilter;
+				texture.magFilter = THREE.LinearFilter;
+				texture.anisotropy = 8;
+
+				let mesh = new THREE.Mesh(
+					new THREE.PlaneBufferGeometry( 0.5, 0.5 ),
+					new THREE.MeshBasicMaterial( { map: texture, opacity: 0.95, transparent: true } )
+				);
+				mesh.name = 'editor';
+				mesh.position.set( - 0.5, 1, - 0.5 );
+				scene.add( mesh );
+
+				draggables.push( mesh );
+
+				//
+
+				let timeout;
+
+				editor = new Textor.TextEditor( canvas );
+				editor.addEventListener( 'textchanged', function () {
+
+					clearTimeout( timeout );
+					timeout = setTimeout( compile, 600 );
+
+				} );
+				editor.language = new Textor.JavaScriptLanguage();
+				editor.theme = editor.themeManager.get( 'peacock' );
+				editor.text = document.getElementById( 'code' ).textContent.trim();
+				editor.focus();
+
+				//
+
+				consoleTexture = new ConsoleTexture( 512 * 2, 64 * 2 );
+				let consoleMesh = new THREE.Mesh(
+					new THREE.PlaneBufferGeometry( 0.5, 0.0625 ),
+					new THREE.MeshBasicMaterial( { map: consoleTexture.getTexture(), opacity: 0.95, transparent: true } )
+				);
+				consoleMesh.position.y = - 0.285;
+				mesh.add( consoleMesh );
+
+			}
+
+			function compile() {
+
+				for ( const viewer of viewers ) {
+
+					// Object3D.clear() ?
+
+					while ( viewer.children.length ) {
+
+						viewer.remove( viewer.children[ 0 ] );
+
+					}
+
+				}
+
+				for ( const viewer of viewers ) {
+
+					try {
+
+						let program = ( new Function(
+							'THREE, scene, init, update',
+							editor.text + '\nreturn { init: init, update: update };'
+						) )( THREE, viewer );
+
+						program.init();
+						program.update();
+
+						viewer.userData.program = program;
+
+						consoleTexture.setText( '' );
+
+					} catch ( exception ) {
+
+						viewer.userData.program = null;
+						consoleTexture.setText( exception.toString() );
+
+					}
+
+				}
+
+			}
+
+			//
+
+			function animate() {
+
+				renderer.setAnimationLoop( render );
+
+			}
+
+			function render( time ) {
+
+				for ( const viewer of viewers ) {
+
+					let program = viewer.userData.program;
+
+					if ( program !== null ) {
+
+						program.update( time );
+
+					}
+
+				}
+
+				texture.needsUpdate = true; // 🤷
+
+				intersectObjects( controller1 );
+				intersectObjects( controller2 );
+
+				renderer.render( scene, camera );
+
+			}
+
+		</script>
+	</body>
+</html>
