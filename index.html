@@ -23,8 +23,8 @@
 // https://github.com/sigmaxipi/xrcode-1
 //
 // Pair a BT or USB keyboard to edit code.
+// Grab with trigger to move the text field.
 // Rendered on a 1080x1920 layer. Press the grip to see non-layer rendering.
-// (Grabbing and dragging the editor is currently broken.)
 
 let mesh;
 
@@ -374,6 +374,8 @@ function update( time ) {
 
 				}
 
+				// Create layer
+
 				session.requestReferenceSpace( 'local' ).then( ( refSpace ) => {
 
 					const glBinding = new XRWebGLBinding( session, gl );
@@ -398,6 +400,8 @@ function update( time ) {
 				session.haslayer = true;
 
 			}
+
+			// Copy image from canvas to layer's texture
 
 			function updatelayer( frame ) {
 
@@ -481,13 +485,6 @@ function update( time ) {
 
 				}
 
-				texture.needsUpdate = true; // 🤷
-				if ( layer ) {
-
-					layer.needsUpdate = true;
-
-				}
-
 
 				intersectObjects( controller1 );
 				intersectObjects( controller2 );
@@ -509,6 +506,22 @@ function update( time ) {
 			}
 
 
+			function refreshCanvas() {
+
+				if (texture ) {
+
+					texture.needsUpdate = true;
+
+				}
+				if ( layer ) {
+
+					layer.needsUpdate = true;
+
+				}
+			}
+
+			document.onkeypress = refreshCanvas;
+			setInterval(refreshCanvas, 1000); // Handling blinking cursor.
 		</script>
 	</body>
 </html>
