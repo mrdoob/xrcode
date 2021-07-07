@@ -1,4 +1,4 @@
-import * as THREE from 'https://unpkg.com/three@0.116.1/build/three.module.js';
+import * as THREE from 'https://unpkg.com/three@0.130.1/build/three.module.js';
 
 function ConsoleTexture( width, height ) {
 

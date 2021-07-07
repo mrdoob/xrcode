@@ -19,6 +19,13 @@
 	</head>
 	<body>
 		<div id="code" style="display:none">
+// Fork of xrcode.glitch.me with WebXR Layers.
+// https://github.com/sigmaxipi/xrcode-1
+//
+// Pair a BT or USB keyboard to edit code.
+// Rendered on a 1080x1920 layer. Press the grip to see non-layer rendering.
+// (Grabbing and dragging the editor is currently broken.)
+
 let mesh;
 
 function init() {
@@ -29,6 +36,7 @@ function init() {
 	} );
 
 	mesh = new THREE.Mesh( geometry, material );
+	mesh.position.set(.5, 1, -.5);
 	scene.add( mesh );
 
 }
@@ -36,7 +44,7 @@ function init() {
 function update( time ) {
 
 	mesh.material.color.setHSL( time / 1000, 0.5, 0.5 );
-	mesh.position.y = Math.sin( time / 1000 ) * 0.5 + 0.5;
+	mesh.position.y = Math.sin( time / 1000 ) * 0.5 + 1;
 	mesh.rotation.set( time / 1000, time / 2000, 0 );
 
 }
@@ -46,16 +54,16 @@ function update( time ) {
 		<script src="js/textor/javascript.js"></script>
 		<script type="module">
 
-			import * as THREE from 'https://unpkg.com/three@0.116.1/build/three.module.js';
-			import { GLTFLoader } from 'https://unpkg.com/three@0.116.1/examples/jsm/loaders/GLTFLoader.js';
-			import { VRButton } from 'https://unpkg.com/three@0.116.1/examples/jsm/webxr/VRButton.js';
+			import * as THREE from 'https://unpkg.com/three@0.130.1/build/three.module.js';
+			import { GLTFLoader } from './js/GLTFLoader.js'; // Using 130.1 GLTFLoader is broken due to a module issue I don't understand yet.
+			import { VRButton } from 'https://unpkg.com/three@0.130.1/examples/jsm/webxr/VRButton.js';
 
 			import { ConsoleTexture } from './js/console.js';
 			import { Environment } from './js/environment.js';
 
 			let camera, scene, renderer;
 
-			let editor, texture;
+			let editor, texture, mesh, canvas, layer;
 			let consoleTexture;
 			let viewers = [];
 
@@ -96,11 +104,11 @@ function update( time ) {
 
 				} );
 				const loader = new GLTFLoader( manager );
-				loader.setPath( 'assets/' );
+				loader.setPath( 'https://cdn.glitch.com/5e12d255-24bb-4b24-bff5-fb3ba0b130d1%2F' );
 				loader.load( 'scene.gltf', function ( gltf ) {
 
+					gltf.scene.position.x = 2;
 					gltf.scene.position.y = 1;
-					gltf.scene.position.x = 1.5;
 					gltf.scene.position.z = - 1;
 
 					scene.add( gltf.scene );
@@ -117,7 +125,7 @@ function update( time ) {
 						transparent: true
 					} )
 				);
-				viewer.position.set( 0, 0, - 1 );
+				viewer.position.set( 0, 0, 0 );
 				viewer.userData.program = null;
 				scene.add( viewer );
 
@@ -146,7 +154,7 @@ function update( time ) {
 
 				//
 
-				let geometry = new THREE.BufferGeometry()
+				let geometry = new THREE.BufferGeometry();
 				geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 1 ) ] );
 
 				let line = new THREE.Line( geometry );
@@ -204,6 +212,15 @@ function update( time ) {
 
 					}
 
+					if ( object.name === 'editor' ) {
+
+						mesh.material.opacity = 1;
+						if (layer) {
+							layer.width = layer.height = 0;
+						}
+
+					}
+
 					controller.attach( object );
 
 					controller.userData.selected = object;
@@ -226,6 +243,12 @@ function update( time ) {
 					if ( object.name === 'editor' ) {
 
 						editor.focus();
+						if (layer) {
+							mesh.material.opacity = 0;
+							layer.transform = new XRRigidTransform( mesh.position, mesh.quaternion );
+							layer.width = mesh.scale.x;
+							layer.height = mesh.scale.y;
+						}
 
 					}
 
@@ -281,9 +304,9 @@ function update( time ) {
 
 			function initEditor() {
 
-				let canvas = document.createElement( 'canvas' );
-				canvas.width = 512;
-				canvas.height = 512;
+				canvas = document.createElement( 'canvas' );
+				canvas.width = 1080;
+				canvas.height = 1920;
 				canvas.style.display = 'block';
 				canvas.style.position = 'absolute';
 				canvas.style.top = '0';
@@ -295,17 +318,18 @@ function update( time ) {
 				texture = new THREE.CanvasTexture( canvas );
 				texture.wrapS = THREE.ClampToEdgeWrapping;
 				texture.wrapT = THREE.ClampToEdgeWrapping;
-				// texture.minFilter = THREE.LinearMipmapNearestFilter;
 				texture.minFilter = THREE.LinearFilter;
 				texture.magFilter = THREE.LinearFilter;
 				texture.anisotropy = 8;
 
-				let mesh = new THREE.Mesh(
-					new THREE.PlaneBufferGeometry( 0.5, 0.5 ),
-					new THREE.MeshBasicMaterial( { map: texture, opacity: 0.95, transparent: true } )
+				mesh = new THREE.Mesh(
+					new THREE.PlaneBufferGeometry( 2, 2 ), // Real dimensions tracked by scale. [2,2] is the default size of quad layers.
+					new THREE.MeshBasicMaterial( { map: texture, opacity: 0, transparent: false } )
 				);
 				mesh.name = 'editor';
-				mesh.position.set( - 0.5, 1, - 0.5 );
+				mesh.position.set( 0, 1.0, - 0.5 );
+				mesh.scale.x = .25;
+				mesh.scale.y = mesh.scale.x * canvas.height / canvas.width;
 				scene.add( mesh );
 
 				draggables.push( mesh );
@@ -330,11 +354,67 @@ function update( time ) {
 
 				consoleTexture = new ConsoleTexture( 512 * 2, 64 * 2 );
 				let consoleMesh = new THREE.Mesh(
-					new THREE.PlaneBufferGeometry( 0.5, 0.0625 ),
+					new THREE.PlaneBufferGeometry( .5, 0.0625 ),
 					new THREE.MeshBasicMaterial( { map: consoleTexture.getTexture(), opacity: 0.95, transparent: true } )
 				);
-				consoleMesh.position.y = - 0.285;
+				consoleMesh.position.y = - mesh.scale.y * 2 - .3;
+				consoleMesh.scale.set( 4, 4, 1 );
 				mesh.add( consoleMesh );
+
+			}
+
+			function initLayers() {
+
+				const session = renderer.xr.getSession();
+				const gl = renderer.getContext();
+
+				if ( ! session || ! session.renderState.layers || session.haslayer ) {
+
+					return;
+
+				}
+
+				session.requestReferenceSpace( 'local' ).then( ( refSpace ) => {
+
+					const glBinding = new XRWebGLBinding( session, gl );
+
+					layer = glBinding.createQuadLayer( {
+						width: mesh.scale.x,
+						height: mesh.scale.y,
+						viewPixelWidth: canvas.width,
+						viewPixelHeight: canvas.height,
+						space: refSpace,
+						transform: new XRRigidTransform( mesh.position )
+					} );
+					layer.needsUpdate = true;
+					window.layer = layer;
+
+					session.updateRenderState( { layers: [ layer, session.renderState.layers[ 0 ] ] } );
+					window.session = session;
+
+				} );
+
+
+				session.haslayer = true;
+
+			}
+
+			function updatelayer( frame ) {
+
+				if ( ! layer || ! layer.needsRedraw && ! layer.needsUpdate ) {
+
+					return;
+
+				}
+
+				const session = renderer.xr.getSession();
+				const gl = renderer.getContext();
+
+				const glBinding = new XRWebGLBinding( session, gl );
+				const glayer = glBinding.getSubImage( layer, frame );
+				renderer.state.bindTexture( gl.TEXTURE_2D, glayer.colorTexture );
+				gl.pixelStorei( gl.UNPACK_FLIP_Y_WEBGL, true );
+				gl.texSubImage2D( gl.TEXTURE_2D, 0, 0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, canvas );
 
 			}
 
@@ -387,7 +467,7 @@ function update( time ) {
 
 			}
 
-			function render( time ) {
+			function render( time, frame ) {
 
 				for ( const viewer of viewers ) {
 
@@ -402,13 +482,32 @@ function update( time ) {
 				}
 
 				texture.needsUpdate = true; // 🤷
+				if ( layer ) {
+
+					layer.needsUpdate = true;
+
+				}
+
 
 				intersectObjects( controller1 );
 				intersectObjects( controller2 );
 
 				renderer.render( scene, camera );
 
+				initLayers();
+				updatelayer( frame );
+
+				// Demo layer vs non-layer rendering by pressing the grip button or dragging with the trigger.
+				const session = renderer.xr.getSession();
+				if ( session && session.inputSources[ 0 ] && session.inputSources[ 0 ].gamepad && session.inputSources[ 0 ].gamepad.connected ) {
+
+					const buttons = session.inputSources[ 0 ].gamepad.buttons;
+					mesh.material.opacity = ( buttons[ 0 ].pressed || buttons[ 1 ].pressed ) ? 1 : 0;
+
+				}
+
 			}
+
 
 		</script>
 	</body>
