@@ -54,9 +54,9 @@ function update( time ) {
 		<script src="js/textor/javascript.js"></script>
 		<script type="module">
 
-			import * as THREE from 'https://unpkg.com/three@0.130.1/build/three.module.js';
-			import { GLTFLoader } from './js/GLTFLoader.js'; // Using 130.1 GLTFLoader is broken due to a module issue I don't understand yet.
-			import { VRButton } from 'https://unpkg.com/three@0.130.1/examples/jsm/webxr/VRButton.js';
+			import * as THREE from 'https://cdn.skypack.dev/three@0.130.1';
+			import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.130.1/examples/jsm/loaders/GLTFLoader.js';
+			import { VRButton } from 'https://cdn.skypack.dev/three@0.130.1/examples/jsm/webxr/VRButton.js';
 
 			import { ConsoleTexture } from './js/console.js';
 			import { Environment } from './js/environment.js';
