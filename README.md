@@ -8,6 +8,10 @@ Kudos to the one that started it all: [RiftSketch](https://www.youtube.com/watch
 
 #### Updates
 
+July 6, 2021
+
+* Switch to [WebXR Layers](https://www.w3.org/TR/webxrlayers-1/) for improved text quality.
+
 September 11, 2020
 
 * Added apartment scene
