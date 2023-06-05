@@ -7,7 +7,7 @@
 		<style>
 			body {
 				font-family: Monospace;
-				background-color: #808080;
+				background-color: #444444;
 				color: #fff;
 				margin: 0;
 				overflow: hidden;
@@ -23,7 +23,7 @@ let mesh;
 
 function init() {
 
-	let geometry = new THREE.IcosahedronGeometry( 0.1 );
+	let geometry = new THREE.IcosahedronGeometry( 0.075 );
 	let material = new THREE.MeshStandardMaterial( {
 		roughness: 0.2, metalness: 0.5
 	} );
@@ -36,7 +36,7 @@ function init() {
 function update( time ) {
 
 	mesh.material.color.setHSL( time / 1000, 0.5, 0.5 );
-	mesh.position.y = Math.sin( time / 1000 ) * 0.5 + 0.5;
+	mesh.position.y = Math.sin( time / 1000 ) * 0.25 + 0.25;
 	mesh.rotation.set( time / 1000, time / 2000, 0 );
 
 }
@@ -62,8 +62,7 @@ function update( time ) {
 			import * as THREE from 'three';
 
 			import { RoomEnvironment } from 'three-addons/environments/RoomEnvironment.js';
-			import { OculusHandModel } from 'three-addons/webxr/OculusHandModel.js';
-			import { VRButton } from 'three-addons/webxr/VRButton.js';
+			import { XRButton } from 'three-addons/webxr/XRButton.js';
 
 			import { ConsoleTexture } from './js/console.js';
 
@@ -75,8 +74,6 @@ function update( time ) {
 
 			let controller1, controller2, raycaster;
 			let tempMatrix = new THREE.Matrix4();
-
-			let hand1, hand2;
 
 			let draggables = [];
 
@@ -100,7 +97,7 @@ function update( time ) {
 				const pmremGenerator = new THREE.PMREMGenerator( renderer );
 
 				scene = new THREE.Scene();
-				scene.background = new THREE.Color( 0x808080 );
+				scene.background = new THREE.Color( 0x444444 );
 				scene.environment = pmremGenerator.fromScene( new RoomEnvironment(), 0.04 ).texture;
 
 				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 20 );
@@ -114,16 +111,15 @@ function update( time ) {
 				} );
 
 				let viewer = new THREE.Mesh(
-					new THREE.IcosahedronGeometry( 0.1, 2 ),
+					new THREE.IcosahedronGeometry( 0.05, 2 ),
 					new THREE.MeshBasicMaterial( {
-						color: 0x111111,
-						blending: THREE.AdditiveBlending,
+						opacity: 0.2,
 						depthTest: false,
 						depthWrite: false,
 						transparent: true
 					} )
 				);
-				viewer.position.set( 0, 0, - 1 );
+				viewer.position.set( 0, 0.75, - 0.5 );
 				viewer.userData.program = null;
 				scene.add( viewer );
 
@@ -132,19 +128,6 @@ function update( time ) {
 
 				//
 
-				document.body.appendChild( VRButton.createButton( renderer ) );
-
-				/*
-				let sphere = new THREE.Mesh(
-					new THREE.SphereGeometry( 0.5 ),
-					new THREE.MeshPhysicalMaterial( { color: 0x0000ff, roughness: 0, thickness: 0.1, transmission: 1 } )
-				);
-				sphere.position.y = 1.6;
-				sphere.position.z = - 1;
-				scene.add( sphere );
-				*/
-
-				/*
 				controller1 = renderer.xr.getController( 0 );
 				controller1.addEventListener( 'selectstart', onSelectStart );
 				controller1.addEventListener( 'selectend', onSelectEnd );
@@ -161,25 +144,15 @@ function update( time ) {
 				controller2.userData.isSqueezing = false;
 				scene.add( controller2 );
 
-				//
-
 				let geometry = new THREE.BufferGeometry()
-				geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 1 ) ] );
+				geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - .5 ) ] );
 
 				let line = new THREE.Line( geometry );
-				line.scale.z = 2;
 
 				controller1.add( line.clone() );
 				controller2.add( line.clone() );
-				*/
 
-				hand1 = renderer.xr.getHand( 0 );
-				hand1.add( new OculusHandModel( hand1 ) );
-				scene.add( hand1 );
-
-				hand2 = renderer.xr.getHand( 1 );
-				hand2.add( new OculusHandModel( hand2 ) );
-				scene.add( hand2 );
+				document.body.appendChild( XRButton.createButton( renderer ) );
 
 				raycaster = new THREE.Raycaster();
 
@@ -328,11 +301,12 @@ function update( time ) {
 				texture.needsUpdate = true;
 
 				let mesh = new THREE.Mesh(
-					new THREE.PlaneBufferGeometry( 0.5, 0.5 ),
+					new THREE.PlaneGeometry( 0.5, 0.5 ),
 					new THREE.MeshBasicMaterial( { map: texture } )
 				);
 				mesh.name = 'editor';
-				mesh.position.set( - 0.5, 1, - 0.5 );
+				mesh.position.set( - 0.5, 1, - 0.75 );
+				mesh.rotation.y = 0.5;
 				scene.add( mesh );
 
 				draggables.push( mesh );
@@ -406,21 +380,6 @@ function update( time ) {
 
 			}
 
-			function changeHandMaterial( container ) {
-
-				if ( container.userData.materialChanged === true ) return;
-
-				const mesh = container.getObjectByProperty( 'type', 'SkinnedMesh' );
-
-				if ( mesh ) {
-
-					mesh.material = new THREE.MeshPhysicalMaterial( { color: 0x0000ff, roughness: 0, thickness: 0.1, transmission: 1 } );
-					container.userData.materialChanged === true;
-
-				}
-
-			}
-
 			//
 
 			function render( time ) {
@@ -438,12 +397,6 @@ function update( time ) {
 				}
 
 				texture.needsUpdate = true; // 🤷
-
-				changeHandMaterial( hand1 );
-				changeHandMaterial( hand2 );
-
-				// intersectObjects( controller1 );
-				// intersectObjects( controller2 );
 
 				renderer.render( scene, camera );
 
