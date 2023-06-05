@@ -49,8 +49,8 @@ function update( time ) {
 		<script type="importmap">
 			{
 				"imports": {
-					"three": "https://unpkg.com/three@0.138/build/three.module.js",
-					"three-addons/": "https://unpkg.com/three@0.138/examples/jsm/"
+					"three": "https://unpkg.com/three@0.153/build/three.module.js",
+					"three-addons/": "https://unpkg.com/three@0.153/examples/jsm/"
 				}
 			}
 		</script>
@@ -82,16 +82,13 @@ function update( time ) {
 
 			init();
 			initEditor();
-			animate();
 
 			function init() {
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setAnimationLoop( render );
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
-				renderer.outputEncoding = THREE.sRGBEncoding;
-				renderer.toneMapping = THREE.ACESFilmicToneMapping;
-				renderer.toneMappingExposure = 0.5;
 				renderer.xr.enabled = true;
 				document.body.appendChild( renderer.domElement );
 				renderer.domElement.addEventListener( 'click', function () { editor.focus() } );
@@ -425,12 +422,6 @@ function update( time ) {
 			}
 
 			//
-
-			function animate() {
-
-				renderer.setAnimationLoop( render );
-
-			}
 
 			function render( time ) {
 
