@@ -62,7 +62,6 @@ function update( time ) {
 			import * as THREE from 'three';
 
 			import { RoomEnvironment } from 'three-addons/environments/RoomEnvironment.js';
-			import { GLTFLoader } from 'three-addons/loaders/GLTFLoader.js';
 			import { OculusHandModel } from 'three-addons/webxr/OculusHandModel.js';
 			import { VRButton } from 'three-addons/webxr/VRButton.js';
 
@@ -114,17 +113,6 @@ function update( time ) {
 				manager.setURLModifier( ( url ) => {
 
 					return url.replace( 'textures/', '' );
-
-				} );
-				const loader = new GLTFLoader( manager );
-				loader.setPath( 'assets/' );
-				loader.load( 'scene.gltf', function ( gltf ) {
-
-					gltf.scene.position.y = 1;
-					gltf.scene.position.x = 1.5;
-					gltf.scene.position.z = - 1;
-
-					scene.add( gltf.scene );
 
 				} );
 
