@@ -8,6 +8,11 @@ Kudos to the one that started it all: [RiftSketch](https://www.youtube.com/watch
 
 #### Updates
 
+June 6, 2023
+
+* Removed apartment scene
+* Updated to Three.js r153
+
 September 11, 2020
 
 * Added apartment scene
