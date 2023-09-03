@@ -1,407 +1,309 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<title>XR Code</title>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-		<style>
-			body {
-				font-family: Monospace;
-				background-color: #444444;
-				color: #fff;
-				margin: 0;
-				overflow: hidden;
-			}
-			canvas {
-				display: block;
-			}
-		</style>
-	</head>
-	<body>
-		<div id="code" style="display:none">
-let mesh;
-
-function init() {
-
-	let geometry = new THREE.IcosahedronGeometry( 0.075 );
-	let material = new THREE.MeshStandardMaterial( {
-		roughness: 0.2, metalness: 0.5
-	} );
-
-	mesh = new THREE.Mesh( geometry, material );
-	scene.add( mesh );
-
-}
-
-function update( time ) {
-
-	mesh.material.color.setHSL( time / 1000, 0.5, 0.5 );
-	mesh.position.y = Math.sin( time / 1000 ) * 0.25 + 0.25;
-	mesh.rotation.set( time / 1000, time / 2000, 0 );
-
-}
-		</div>
-
-		<!-- Import maps polyfill -->
-		<!-- Remove this when import maps will be widely supported -->
-		<script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
-
-		<script type="importmap">
-			{
-				"imports": {
-					"three": "https://unpkg.com/three@0.153/build/three.module.js",
-					"three-addons/": "https://unpkg.com/three@0.153/examples/jsm/"
-				}
-			}
-		</script>
-
-		<script src="js/textor/texteditor.js"></script>
-		<script src="js/textor/javascript.js"></script>
-		<script type="module">
-
-			import * as THREE from 'three';
-
-			import { RoomEnvironment } from 'three-addons/environments/RoomEnvironment.js';
-			import { XRButton } from 'three-addons/webxr/XRButton.js';
-
-			import { ConsoleTexture } from './js/console.js';
-
-			let camera, scene, renderer;
-
-			let editor, texture;
-			let consoleTexture;
-			let viewers = [];
-
-			let controller1, controller2, raycaster;
-			let tempMatrix = new THREE.Matrix4();
-
-			let draggables = [];
-
-			init();
-			initEditor();
-
-			function init() {
-
-				renderer = new THREE.WebGLRenderer( { antialias: true } );
-				renderer.setAnimationLoop( render );
-				renderer.setPixelRatio( window.devicePixelRatio );
-				renderer.setSize( window.innerWidth, window.innerHeight );
-				renderer.xr.enabled = true;
-				document.body.appendChild( renderer.domElement );
-				renderer.domElement.addEventListener( 'click', function () { editor.focus() } );
-
-				window.addEventListener( 'resize', onWindowResize, false );
-
-				//
-
-				const pmremGenerator = new THREE.PMREMGenerator( renderer );
-
-				scene = new THREE.Scene();
-				scene.background = new THREE.Color( 0x444444 );
-				scene.environment = pmremGenerator.fromScene( new RoomEnvironment(), 0.04 ).texture;
-
-				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 20 );
-				camera.position.set( 0, 1.6, 0 );
-
-				const manager = new THREE.LoadingManager();
-				manager.setURLModifier( ( url ) => {
-
-					return url.replace( 'textures/', '' );
-
-				} );
-
-				let viewer = new THREE.Mesh(
-					new THREE.IcosahedronGeometry( 0.05, 2 ),
-					new THREE.MeshBasicMaterial( {
-						opacity: 0.2,
-						depthTest: false,
-						depthWrite: false,
-						transparent: true
-					} )
-				);
-				viewer.position.set( 0, 0.75, - 0.5 );
-				viewer.userData.program = null;
-				scene.add( viewer );
-
-				draggables.push( viewer );
-				viewers.push( viewer );
-
-				//
-
-				controller1 = renderer.xr.getController( 0 );
-				controller1.addEventListener( 'selectstart', onSelectStart );
-				controller1.addEventListener( 'selectend', onSelectEnd );
-				controller1.addEventListener( 'squeezestart', onSqueezeStart );
-				controller1.addEventListener( 'squeezeend', onSqueezeEnd );
-				controller1.userData.isSqueezing = false;
-				scene.add( controller1 );
-
-				controller2 = renderer.xr.getController( 1 );
-				controller2.addEventListener( 'selectstart', onSelectStart );
-				controller2.addEventListener( 'selectend', onSelectEnd );
-				controller2.addEventListener( 'squeezestart', onSqueezeStart );
-				controller2.addEventListener( 'squeezeend', onSqueezeEnd );
-				controller2.userData.isSqueezing = false;
-				scene.add( controller2 );
-
-				let geometry = new THREE.BufferGeometry()
-				geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - .5 ) ] );
-
-				let line = new THREE.Line( geometry );
-
-				controller1.add( line.clone() );
-				controller2.add( line.clone() );
-
-				document.body.appendChild( XRButton.createButton( renderer ) );
-
-				raycaster = new THREE.Raycaster();
-
-			}
-
-			function onWindowResize() {
-
-				camera.aspect = window.innerWidth / window.innerHeight;
-				camera.updateProjectionMatrix();
-
-				renderer.setSize( window.innerWidth, window.innerHeight );
-
-			}
-
-			//
-
-			function getIntersections( controller ) {
-
-				tempMatrix.identity().extractRotation( controller.matrixWorld );
-
-				raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
-				raycaster.ray.direction.set( 0, 0, - 1 ).applyMatrix4( tempMatrix );
-
-				return raycaster.intersectObjects( draggables );
-
-			}
-
-			function onSelectStart( event ) {
-
-				let controller = event.target;
-
-				let intersections = getIntersections( controller );
-
-				if ( intersections.length > 0 ) {
-
-					let intersection = intersections[ 0 ];
-
-					let object = intersection.object;
-
-					if ( controller.userData.isSqueezing && object.name !== 'editor' ) {
-
-						object = object.clone();
-
-						draggables.push( object );
-						viewers.push( object );
-
-						compile();
-
-					}
-
-					controller.attach( object );
-
-					controller.userData.selected = object;
-
-				}
-
-			}
-
-			function onSelectEnd( event ) {
-
-				let controller = event.target;
-
-				if ( controller.userData.selected !== undefined ) {
-
-					let object = controller.userData.selected;
-					scene.attach( object );
-
-					controller.userData.selected = undefined;
-
-					if ( object.name === 'editor' ) {
-
-						editor.focus();
-
-					}
-
-				}
-
-
-			}
-
-			//
-
-			function onSqueezeStart( event ) {
-
-				let controller = event.target;
-				controller.userData.isSqueezing = true;
-
-			}
-
-			function onSqueezeEnd( event ) {
-
-				let controller = event.target;
-				controller.userData.isSqueezing = false;
-
-			}
-
-			//
-
-			function intersectObjects( controller ) {
-
-				// Do not highlight when already selected
-
-				if ( controller.userData.selected !== undefined ) return;
-
-				let line = controller.children[ 0 ];
-				let intersections = getIntersections( controller );
-
-				if ( intersections.length > 0 ) {
-
-					let intersection = intersections[ 0 ];
-
-					let object = intersection.object;
-
-					line.scale.z = intersection.distance;
-
-				} else {
-
-					line.scale.z = 2;
-
-				}
-
-			}
-
-			// Code Editor
-
-			function initEditor() {
-
-				let canvas = document.createElement( 'canvas' );
-				canvas.width = 512;
-				canvas.height = 512;
-				canvas.style.display = 'block';
-				canvas.style.position = 'absolute';
-				canvas.style.top = '0';
-				canvas.style.zIndex = '-1'; // 🙃
-				document.body.appendChild( canvas );
-
-				//
-
-				texture = new THREE.CanvasTexture( canvas );
-				texture.wrapS = THREE.ClampToEdgeWrapping;
-				texture.wrapT = THREE.ClampToEdgeWrapping;
-				// texture.minFilter = THREE.LinearMipmapNearestFilter;
-				texture.minFilter = THREE.LinearFilter;
-				texture.magFilter = THREE.LinearFilter;
-				texture.anisotropy = 8;
-				texture.needsUpdate = true;
-
-				let mesh = new THREE.Mesh(
-					new THREE.PlaneGeometry( 0.5, 0.5 ),
-					new THREE.MeshBasicMaterial( { map: texture } )
-				);
-				mesh.name = 'editor';
-				mesh.position.set( - 0.5, 1, - 0.75 );
-				mesh.rotation.y = 0.5;
-				scene.add( mesh );
-
-				draggables.push( mesh );
-
-				//
-
-				let timeout;
-
-				editor = new Textor.TextEditor( canvas );
-				editor.addEventListener( 'textchanged', function () {
-
-					clearTimeout( timeout );
-					timeout = setTimeout( compile, 600 );
-
-				} );
-				editor.language = new Textor.JavaScriptLanguage();
-				editor.theme = editor.themeManager.get( 'peacock' );
-				editor.text = document.getElementById( 'code' ).textContent.trim();
-				editor.focus();
-
-				//
-
-				consoleTexture = new ConsoleTexture( 512 * 2, 64 * 2 );
-				let consoleMesh = new THREE.Mesh(
-					new THREE.PlaneBufferGeometry( 0.5, 0.0625 ),
-					new THREE.MeshBasicMaterial( { map: consoleTexture.getTexture() } )
-				);
-				consoleMesh.position.y = - 0.285;
-				mesh.add( consoleMesh );
-
-			}
-
-			function compile() {
-
-				for ( const viewer of viewers ) {
-
-					// Object3D.clear() ?
-
-					while ( viewer.children.length ) {
-
-						viewer.remove( viewer.children[ 0 ] );
-
-					}
-
-				}
-
-				for ( const viewer of viewers ) {
-
-					try {
-
-						let program = ( new Function(
-							'THREE, scene, init, update',
-							editor.text + '\nreturn { init: init, update: update };'
-						) )( THREE, viewer );
-
-						program.init();
-						program.update();
-
-						viewer.userData.program = program;
-
-						consoleTexture.setText( '' );
-
-					} catch ( exception ) {
-
-						viewer.userData.program = null;
-						consoleTexture.setText( exception.toString() );
-
-					}
-
-				}
-
-			}
-
-			//
-
-			function render( time ) {
-
-				for ( const viewer of viewers ) {
-
-					let program = viewer.userData.program;
-
-					if ( program !== null ) {
-
-						program.update( time );
-
-					}
-
-				}
-
-				texture.needsUpdate = true; // 🤷
-
-				renderer.render( scene, camera );
-
-			}
-
-		</script>
-	</body>
+  <head>
+    <title>XR Code</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      html,
+      body,
+      #root {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+      }
+      body {
+        font-family: Monospace;
+        background-color: #444444;
+        color: #fff;
+        margin: 0;
+        overflow: hidden;
+      }
+    </style>
+    <!-- Babel + Shim + Imports -->
+    <script src="https://unpkg.com/@babel/standalone@7.22.14/babel.min.js"></script>
+    <!-- * * ESM.sh gives us a great CDN for ESM modules w/ lots of options! **/ -->
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react",
+          "react-dom": "https://esm.sh/react-dom/client",
+          "react-use-measure": "https://esm.sh/react-use-measure@2.1.1",
+          "three": "https://esm.sh/three",
+          "three-addons/": "https://esm.sh/three@0.156/examples/jsm/",
+          "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.13.7",
+          "@react-three/drei": "https://esm.sh/@react-three/drei@9.80.9"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <!-- prettier-ignore -->
+    <pre id="code" style="display: none">
+      let mesh;
+
+      function init() {
+        let geometry = new THREE.IcosahedronGeometry(0.075);
+        let material = new THREE.MeshStandardMaterial({
+          roughness: 0.2,
+          metalness: 0.5
+        });
+
+        mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+      }
+
+      function update(time) {
+        mesh.material.color.setHSL(time / 1000, 0.5, 0.5);
+        mesh.position.y = Math.sin(time / 1000) * 0.25 + 0.25;
+        mesh.rotation.set(time / 1000, time / 2000, 0);
+      }
+    </pre>
+    <script src="js/textor/texteditor.js"></script>
+    <script src="js/textor/javascript.js"></script>
+    <script type="module">
+      import * as THREE from "three";
+      import { RoomEnvironment } from "three-addons/environments/RoomEnvironment.js";
+      import { XRButton } from "three-addons/webxr/XRButton.js";
+      import { ConsoleTexture } from "./js/console.js";
+
+      let camera, scene, renderer;
+      let editor, texture;
+      let consoleTexture;
+      let viewers = [];
+      let controller1, controller2, raycaster;
+      let tempMatrix = new THREE.Matrix4();
+      let draggables = [];
+
+      init();
+      initEditor();
+
+      function init() {
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setAnimationLoop(render);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        renderer.domElement.addEventListener("click", function () {
+          editor.focus();
+        });
+
+        window.addEventListener("resize", onWindowResize, false);
+
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x444444);
+        scene.environment = pmremGenerator.fromScene(
+          new RoomEnvironment(),
+          0.04
+        ).texture;
+
+        camera = new THREE.PerspectiveCamera(
+          70,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          20
+        );
+        camera.position.set(0, 1.6, 0);
+
+        const manager = new THREE.LoadingManager();
+        manager.setURLModifier((url) => {
+          return url.replace("textures/", "");
+        });
+
+        let viewer = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(0.05, 2),
+          new THREE.MeshBasicMaterial({
+            opacity: 0.2,
+            depthTest: false,
+            depthWrite: false,
+            transparent: true,
+          })
+        );
+        viewer.position.set(0, 0.75, -0.5);
+        viewer.userData.program = null;
+        scene.add(viewer);
+
+        draggables.push(viewer);
+        viewers.push(viewer);
+
+        controller1 = renderer.xr.getController(0);
+        controller1.addEventListener("selectstart", onSelectStart);
+        controller1.addEventListener("selectend", onSelectEnd);
+        controller1.addEventListener("squeezestart", onSqueezeStart);
+        controller1.addEventListener("squeezeend", onSqueezeEnd);
+        controller1.userData.isSqueezing = false;
+        scene.add(controller1);
+
+        controller2 = renderer.xr.getController(1);
+        controller2.addEventListener("selectstart", onSelectStart);
+        controller2.addEventListener("selectend", onSelectEnd);
+        controller2.addEventListener("squeezestart", onSqueezeStart);
+        controller2.addEventListener("squeezeend", onSqueezeEnd);
+        controller2.userData.isSqueezing = false;
+        scene.add(controller2);
+
+        let geometry = new THREE.BufferGeometry();
+        geometry.setFromPoints([
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(0, 0, -0.5),
+        ]);
+
+        let line = new THREE.Line(geometry);
+
+        controller1.add(line.clone());
+        controller2.add(line.clone());
+
+        document.body.appendChild(XRButton.createButton(renderer));
+
+        raycaster = new THREE.Raycaster();
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function getIntersections(controller) {
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+
+        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+        raycaster.ray.direction.set(0, 0, -1).applyMatrix(tempMatrix);
+        let intersects = raycaster.intersectObjects(draggables);
+
+        if (intersects.length > 0) {
+          let intersect = intersects[0];
+          let object = intersect.object;
+
+          if (controller.userData.isSqueezing === false) {
+            object.material.emissive.r = 1;
+            object.material.emissive.g = 0.5;
+            object.material.emissive.b = 0.5;
+            controller.attach(object);
+            controller.userData.selected = object;
+          }
+        }
+      }
+
+      function onSelectEnd(event) {
+        let controller = event.target;
+
+        if (controller.userData.selected !== undefined) {
+          let object = controller.userData.selected;
+          object.material.emissive.r = 0;
+          object.material.emissive.g = 0;
+          object.material.emissive.b = 0;
+          controller.userData.selected = undefined;
+          controller.userData.isSqueezing = false;
+          controller.userData.prevSqueeze = undefined;
+        }
+      }
+
+      function onSqueezeStart(event) {
+        let controller = event.target;
+        controller.userData.isSqueezing = true;
+        controller.userData.prevSqueeze = event.data.squeezes[0].value;
+      }
+
+      function onSqueezeEnd(event) {
+        let controller = event.target;
+        controller.userData.isSqueezing = false;
+        controller.userData.prevSqueeze = undefined;
+      }
+
+      function initEditor() {
+        let canvas = document.createElement("canvas");
+        canvas.width = 1024;
+        canvas.height = 512;
+        canvas.style.display = "block";
+        canvas.style.position = "absolute";
+        canvas.style.top = "0";
+        canvas.style.zIndex = "-1"; // 🙃
+        document.body.appendChild(canvas);
+
+        texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.anisotropy = 8;
+        texture.needsUpdate = true;
+
+        let mesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.5, 0.5),
+          new THREE.MeshBasicMaterial({ map: texture })
+        );
+        mesh.name = "editor";
+        mesh.position.set(-0.5, 1, -0.75);
+        mesh.rotation.y = 0.5;
+        scene.add(mesh);
+
+        draggables.push(mesh);
+
+        let timeout;
+
+        editor = new Textor.TextEditor(canvas);
+        editor.addEventListener("textchanged", function () {
+          clearTimeout(timeout);
+          timeout = setTimeout(compile, 600);
+        });
+        editor.language = new Textor.JavaScriptLanguage();
+        editor.theme = editor.themeManager.get("peacock");
+        editor.text = document.getElementById("code").textContent.trim();
+        editor.focus();
+
+        consoleTexture = new ConsoleTexture(512 * 2, 64 * 2);
+        let consoleMesh = new THREE.Mesh(
+          new THREE.PlaneBufferGeometry(0.5, 0.0625),
+          new THREE.MeshBasicMaterial({ map: consoleTexture.getTexture() })
+        );
+        consoleMesh.position.y = -0.285;
+        mesh.add(consoleMesh);
+      }
+
+      function compile() {
+        for (const viewer of viewers) {
+          while (viewer.children.length) {
+            viewer.remove(viewer.children[0]);
+          }
+        }
+
+        for (const viewer of viewers) {
+          try {
+            let program = new Function(
+              "THREE, scene, init, update",
+              editor.text + "\nreturn { init: init, update: update };"
+            )(THREE, viewer);
+
+            program.init();
+            program.update();
+
+            viewer.userData.program = program;
+
+            consoleTexture.setText("");
+          } catch (exception) {
+            viewer.userData.program = null;
+            consoleTexture.setText(exception.toString());
+          }
+        }
+      }
+
+      function render(time) {
+        for (const viewer of viewers) {
+          let program = viewer.userData.program;
+
+          if (program !== null) {
+            program.update(time);
+          }
+        }
+
+        texture.needsUpdate = true;
+
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
 </html>
