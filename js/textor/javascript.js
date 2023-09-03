@@ -1,3 +1,4 @@
+// Javascript language for Textor
 var Textor;
 (function (Textor) {
   var JavaScriptLanguage = /** @class */ (function () {

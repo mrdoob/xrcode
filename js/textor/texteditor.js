@@ -1,3 +1,4 @@
+// Textor the text editor
 var Textor;
 (function (Textor) {
   var ContainerUndoUnit = /** @class */ (function () {
