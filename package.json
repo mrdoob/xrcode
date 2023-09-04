@@ -1,0 +1,16 @@
+{
+  "name": "xrcode",
+  "version": "1.0.0",
+  "description": "Standalone R3F 100 percent clientside",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "vite": "^4.4.9"
+  }
+}
