@@ -26,7 +26,6 @@
       }
     </style>
     <!-- Babel + Shim + Imports -->
-    <!-- ! Consider switching to HTM instead of using Babel ?
     <!-- ! (https://docs.pmnd.rs/react-three-fiber/getting-started/installation#without-build-tools) -->
     <script src="https://unpkg.com/@babel/standalone@7.22.14/babel.min.js"></script>
     <!-- * * ESM.sh gives us a great CDN for ESM modules w/ lots of options! **/ -->
@@ -35,11 +34,10 @@
         "imports": {
           "react": "https://esm.sh/react",
           "react-dom": "https://esm.sh/react-dom/client",
-          "react-use-measure": "https://esm.sh/react-use-measure@2.1.1",
           "three": "https://esm.sh/three",
           "three-addons/": "https://esm.sh/three@0.156/examples/jsm/",
-          "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.13.7",
-          "@react-three/drei": "https://esm.sh/@react-three/drei@9.80.9"
+          "@react-three/fiber": "https://esm.sh/@react-three/fiber",
+          "@react-three/drei": "https://esm.sh/@react-three/drei"
         }
       }
     </script>
@@ -70,7 +68,7 @@
         mesh.rotation.set(time / 1000, time / 2000, 0);
       }
     </pre>
-    <!-- Include code editor dependcies for the 3D environment -->
+    <!-- Include code editor dependcies -->
     <script src="js/textor/texteditor.js"></script>
     <script src="js/textor/javascript.js"></script>
 
@@ -260,7 +258,7 @@
         // Create a console texture for displaying output
         consoleTexture = new ConsoleTexture(512 * 2, 64 * 2);
         let consoleMesh = new THREE.Mesh(
-          new THREE.PlaneBufferGeometry(0.5, 0.0625),
+          new THREE.PlaneGeometry(0.5, 0.0625),
           new THREE.MeshBasicMaterial({ map: consoleTexture.getTexture() })
         );
 
@@ -307,6 +305,43 @@
             controller.attach(object);
             controller.userData.selected = object;
           }
+        }
+      }
+
+      // This function handles the start of a selection event
+      function onSelectStart(event) {
+        // Get the controller that triggered the event
+        let controller = event.target;
+
+        // Get the intersections between the controller and the draggable objects
+        let intersections = getIntersections(controller);
+
+        // If there are intersections
+        if (intersections.length > 0) {
+          // Get the first intersection
+          let intersection = intersections[0];
+
+          // Get the object from the intersection
+          let object = intersection.object;
+
+          // If the controller is being squeezed and the object is not the code editor
+          if (controller.userData.isSqueezing && object.name !== "editor") {
+            // Clone the object
+            object = object.clone();
+
+            // Add the cloned object to the list of draggable objects and viewers
+            draggables.push(object);
+            viewers.push(object);
+
+            // Compile the code
+            compile();
+          }
+
+          // Attach the object to the controller
+          controller.attach(object);
+
+          // Set the selected object in the controller's user data
+          controller.userData.selected = object;
         }
       }
 
