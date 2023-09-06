@@ -258,7 +258,7 @@
         // Create a console texture for displaying output
         consoleTexture = new ConsoleTexture(512 * 2, 64 * 2);
         let consoleMesh = new THREE.Mesh(
-          new THREE.PlaneBufferGeometry(0.5, 0.0625),
+          new THREE.PlaneGeometry(0.5, 0.0625),
           new THREE.MeshBasicMaterial({ map: consoleTexture.getTexture() })
         );
 
