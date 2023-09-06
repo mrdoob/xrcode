@@ -10,25 +10,15 @@ in the conversion of the app from `three.js` to `react-three-fiber` and `drei`
 
 ------------------------
 
-To convert this code to use `react-three-fiber` and `drei`, you would need to create a `React` component that uses the `useThree` hook from `react-three-fiber` and the `CanvasTexture` from `drei`.
+To convert this code to use `react-three-fiber` and `drei`, you would need to create a `React` component that uses `CanvasTexture` from `drei`.
 
 Here's how you could do it:
 
 ```js
-// Import React, useRef, and useEffect from react
 import React, { useRef, useEffect } from 'react';
-
-// Import useThree from react-three-fiber
-import { useThree } from '@react-three/fiber';
-
-// Import CanvasTexture from react-three/drei
 import { CanvasTexture } from '@react-three/drei';
 
-// Define a function component called ConsoleTexture
 function ConsoleTexture({ width, height, text }) {
-  // Use the useThree hook to get the WebGL rendering context
-  const { gl } = useThree();
-
   // Create a ref to store the canvas element
   const canvasRef = useRef();
 
