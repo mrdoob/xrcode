@@ -69,3 +69,12 @@ function ConsoleTexture({ width, height, text }) {
 // Export the ConsoleTexture component
 export default ConsoleTexture;
 ```
+
+------------------------
+
+## Index.html Application
+**The following was output by chatGPT w/ attached docs from the relevant libraries.**
+
+------------------------
+
+I have been trying to get chatGPT to spit out code for the main application but it does not seem to want to co-operate. It keeps spitting back boilerplate code that is unrelated to the code here.
